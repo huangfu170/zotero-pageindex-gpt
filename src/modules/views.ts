@@ -3,13 +3,15 @@ import Meet from "./Meet/api"
 import Utils from "./utils";
 import { Document } from "langchain/document";
 import { help, fontFamily, defaultTags, parseTag } from "./base"
-const markdown = require("markdown-it")({
+import MarkdownIt = require("markdown-it");
+import mathjax3 = require("markdown-it-mathjax3");
+
+const markdown = MarkdownIt({
   breaks: true, // 将行结束符\n转换为 <br> 标签
   xhtmlOut: true, // 使用 /> 关闭标签，而不是 >
   typographer: true,
   html: true,
 });
-const mathjax3 = require('markdown-it-mathjax3');
 markdown.use(mathjax3);
 
 export default class Views {

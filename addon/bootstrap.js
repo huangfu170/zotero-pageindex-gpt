@@ -170,7 +170,9 @@ function shutdown({ id, version, resourceURI, rootURI }, reason) {
     .getService(Components.interfaces.nsIStringBundleService)
     .flushBundles();
 
-  Cu.unload(`${rootURI}chrome/content/scripts/index.js`);
+  if (typeof Cu !== "undefined" && typeof Cu.unload === "function") {
+    Cu.unload(`${rootURI}chrome/content/scripts/index.js`);
+  }
 
   if (chromeHandle) {
     chromeHandle.destruct();
