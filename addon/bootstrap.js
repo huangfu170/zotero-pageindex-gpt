@@ -11,6 +11,34 @@ if (typeof Zotero == "undefined") {
 
 var chromeHandle;
 
+function getServices() {
+  if (typeof Services !== "undefined") {
+    return Services;
+  }
+  if (typeof ChromeUtils !== "undefined" && ChromeUtils.importESModule) {
+    return ChromeUtils.importESModule(
+      "resource://gre/modules/Services.sys.mjs"
+    ).Services;
+  }
+  return ChromeUtils.import("resource://gre/modules/Services.jsm").Services;
+}
+
+function normalizeRootURI(rootURI, resourceURI) {
+  if (!rootURI) {
+    rootURI = resourceURI.spec;
+  }
+  return rootURI.endsWith("/") ? rootURI : `${rootURI}/`;
+}
+
+function reportBootstrapError(error) {
+  try {
+    if (typeof Zotero !== "undefined" && Zotero.logError) {
+      Zotero.logError(error);
+    }
+  } catch (_) {}
+  throw error;
+}
+
 // In Zotero 6, bootstrap methods are called before Zotero is initialized, and using include.js
 // to get the Zotero XPCOM service would risk breaking Zotero startup. Instead, wait for the main
 // Zotero window to open and get the Zotero object from there.
@@ -22,8 +50,8 @@ async function waitForZotero() {
     await Zotero.initializationPromise;
   }
 
-  var { Services } = ChromeUtils.import("resource://gre/modules/Services.jsm");
-  var windows = Services.wm.getEnumerator("navigator:browser");
+  var services = getServices();
+  var windows = services.wm.getEnumerator("navigator:browser");
   var found = false;
   while (windows.hasMoreElements()) {
     let win = windows.getNext();
@@ -46,7 +74,7 @@ async function waitForZotero() {
             function () {
               domWindow.removeEventListener("load", arguments.callee, false);
               if (domWindow.Zotero) {
-                Services.wm.removeListener(listener);
+                services.wm.removeListener(listener);
                 Zotero = domWindow.Zotero;
                 resolve();
               }
@@ -55,7 +83,7 @@ async function waitForZotero() {
           );
         },
       };
-      Services.wm.addListener(listener);
+      services.wm.addListener(listener);
     });
   }
   await Zotero.initializationPromise;
@@ -66,16 +94,15 @@ function install(data, reason) {}
 async function startup({ id, version, resourceURI, rootURI }, reason) {
   await waitForZotero();
 
-  // String 'rootURI' introduced in Zotero 7
-  if (!rootURI) {
-    rootURI = resourceURI.spec;
-  }
+  rootURI = normalizeRootURI(rootURI, resourceURI);
+  var services = getServices();
+  Zotero.debug(`[${id}] bootstrap startup from ${rootURI}`);
 
   if (Zotero.platformMajorVersion >= 102) {
     var aomStartup = Components.classes[
       "@mozilla.org/addons/addon-manager-startup;1"
     ].getService(Components.interfaces.amIAddonManagerStartup);
-    var manifestURI = Services.io.newURI(rootURI + "manifest.json");
+    var manifestURI = services.io.newURI(rootURI + "manifest.json");
     chromeHandle = aomStartup.registerChrome(manifestURI, [
       ["content", "__addonRef__", rootURI + "chrome/content/"],
       ["locale", "__addonRef__", "en-US", rootURI + "chrome/locale/en-US/"],
@@ -96,10 +123,13 @@ async function startup({ id, version, resourceURI, rootURI }, reason) {
   };
   ctx._globalThis = ctx;
 
-  Services.scriptloader.loadSubScript(
-    `${rootURI}/chrome/content/scripts/index.js`,
-    ctx
-  );
+  const scriptURI = `${rootURI}chrome/content/scripts/index.js`;
+  try {
+    services.scriptloader.loadSubScript(scriptURI, ctx);
+    Zotero.debug(`[${id}] loaded ${scriptURI}`);
+  } catch (error) {
+    reportBootstrapError(error);
+  }
 }
 
 function shutdown({ id, version, resourceURI, rootURI }, reason) {
@@ -111,13 +141,16 @@ function shutdown({ id, version, resourceURI, rootURI }, reason) {
       Components.interfaces.nsISupports
     ).wrappedJSObject;
   }
-  Zotero.__addonInstance__.hooks.onShutdown();
+  rootURI = normalizeRootURI(rootURI, resourceURI);
+  if (Zotero.__addonInstance__?.hooks?.onShutdown) {
+    Zotero.__addonInstance__.hooks.onShutdown();
+  }
 
   Cc["@mozilla.org/intl/stringbundle;1"]
     .getService(Components.interfaces.nsIStringBundleService)
     .flushBundles();
 
-  Cu.unload(`${rootURI}/chrome/content/scripts/index.js`);
+  Cu.unload(`${rootURI}chrome/content/scripts/index.js`);
 
   if (chromeHandle) {
     chromeHandle.destruct();
@@ -129,7 +162,8 @@ function uninstall(data, reason) {}
 
 // Loads default preferences from defaults/preferences/prefs.js in Zotero 6
 function setDefaultPrefs(rootURI) {
-  var branch = Services.prefs.getDefaultBranch("");
+  var services = getServices();
+  var branch = services.prefs.getDefaultBranch("");
   var obj = {
     pref(pref, value) {
       switch (typeof value) {
@@ -148,5 +182,5 @@ function setDefaultPrefs(rootURI) {
     },
   };
   Zotero.getMainWindow().console.log(rootURI + "prefs.js");
-  Services.scriptloader.loadSubScript(rootURI + "prefs.js", obj);
+  services.scriptloader.loadSubScript(rootURI + "prefs.js", obj);
 }
