@@ -4,7 +4,7 @@
       "updates": [
         {
           "version": "0.2.8",
-          "update_link": "",
+          "update_link": "https://github.com/huangfu170/zotero-pageindex-gpt/releases/latest/download/zotero-pageindex-gpt.xpi",
           "applications": {
             "gecko": {
               "strict_min_version": "60.0"
@@ -13,7 +13,7 @@
         },
         {
           "version": "0.2.8",
-          "update_link": "",
+          "update_link": "https://github.com/huangfu170/zotero-pageindex-gpt/releases/latest/download/zotero-pageindex-gpt.xpi",
           "applications": {
             "zotero": {
               "strict_min_version": "6.999"

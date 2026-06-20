@@ -7,8 +7,8 @@
     "addonID": "zotero-pageindex-gpt@huangfu170.github.io",
     "addonRef": "zoteropageindexgpt",
     "addonInstance": "ZoteroPageIndexGPT",
-    "releasepage": "",
-    "updaterdf": ""
+    "releasepage": "https://github.com/huangfu170/zotero-pageindex-gpt/releases/latest/download/zotero-pageindex-gpt.xpi",
+    "updaterdf": "https://raw.githubusercontent.com/huangfu170/zotero-pageindex-gpt/main/update.json"
   },
   "main": "src/index.ts",
   "scripts": {
