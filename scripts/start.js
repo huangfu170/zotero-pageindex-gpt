@@ -1,6 +1,23 @@
 const { execSync } = require("child_process");
+const fs = require("fs");
+const path = require("path");
 const { exit } = require("process");
-const { exec } = require("./zotero-cmd.json");
+
+const localConfigPath = path.join(__dirname, "zotero-cmd.json");
+const defaultConfigPath = path.join(__dirname, "zotero-cmd-default.json");
+
+function loadConfig() {
+  if (!fs.existsSync(localConfigPath)) {
+    fs.copyFileSync(defaultConfigPath, localConfigPath);
+    console.error(
+      `Missing scripts/zotero-cmd.json. A template was created at ${localConfigPath}. Edit it and run npm start again.`,
+    );
+    exit(1);
+  }
+  return require(localConfigPath);
+}
+
+const { exec } = loadConfig();
 
 // Run node start.js -h for help
 const args = require("minimist")(process.argv.slice(2));
