@@ -127,9 +127,18 @@ async function startup({ id, version, resourceURI, rootURI }, reason) {
   try {
     services.scriptloader.loadSubScript(scriptURI, ctx);
     Zotero.debug(`[${id}] loaded ${scriptURI}`);
+    await Zotero.__addonInstance__?.hooks?.onStartup();
   } catch (error) {
     reportBootstrapError(error);
   }
+}
+
+async function onMainWindowLoad({ window }, reason) {
+  await Zotero.__addonInstance__?.hooks?.onMainWindowLoad(window);
+}
+
+async function onMainWindowUnload({ window }, reason) {
+  await Zotero.__addonInstance__?.hooks?.onMainWindowUnload(window);
 }
 
 function shutdown({ id, version, resourceURI, rootURI }, reason) {

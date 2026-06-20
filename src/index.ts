@@ -5,29 +5,32 @@ import { config } from "../package.json";
 const basicTool = new BasicTool();
 
 if (!basicTool.getGlobal("Zotero")[config.addonInstance]) {
-  // Set global variables
-  let window: Window
-  _globalThis.Zotero = basicTool.getGlobal("Zotero");
-  _globalThis.ZoteroPane = basicTool.getGlobal("ZoteroPane");
-  _globalThis.Zotero_Tabs = basicTool.getGlobal("Zotero_Tabs");
-  _globalThis.window = window = basicTool.getGlobal("window");
-  _globalThis.URL = basicTool.getGlobal("window").URL;
-  _globalThis.setTimeout = basicTool.getGlobal("window").setTimeout;
-  _globalThis.URLSearchParams = basicTool.getGlobal("window").URLSearchParams;
-  _globalThis.Headers = basicTool.getGlobal("window").Headers;
-  _globalThis.AbortSignal = basicTool.getGlobal("window").AbortSignal;
-  _globalThis.Request = basicTool.getGlobal("window").Request;
-  _globalThis.AbortSignal.timeout = (ms: number) => {
-    // @ts-ignore
-    const controller = new window.AbortController();
-    const timer = window.setTimeout(() => controller.abort(), ms);
-    controller.signal.addEventListener("abort", () => {
-      window.clearTimeout(timer);
-    });
-    return controller.signal;
+  function bindMainWindow(mainWindow?: Window) {
+    const window = mainWindow || basicTool.getGlobal("window");
+    const win = window as any;
+    _globalThis.ZoteroPane = win.ZoteroPane;
+    _globalThis.Zotero_Tabs = win.Zotero_Tabs;
+    _globalThis.window = window;
+    _globalThis.URL = win.URL;
+    _globalThis.setTimeout = window.setTimeout;
+    _globalThis.URLSearchParams = win.URLSearchParams;
+    _globalThis.Headers = win.Headers;
+    _globalThis.AbortSignal = win.AbortSignal;
+    _globalThis.Request = win.Request;
+    _globalThis.AbortSignal.timeout = (ms: number) => {
+      // @ts-ignore
+      const controller = new win.AbortController();
+      const timer = window.setTimeout(() => controller.abort(), ms);
+      controller.signal.addEventListener("abort", () => {
+        window.clearTimeout(timer);
+      });
+      return controller.signal;
+    }
+    _globalThis.document = window.document;
   }
 
-  _globalThis.document = basicTool.getGlobal("document");
+  _globalThis.Zotero = basicTool.getGlobal("Zotero");
+  _globalThis.__bindMainWindow = bindMainWindow;
   _globalThis.addon = new Addon();
   _globalThis.ztoolkit = addon.data.ztoolkit;
   ztoolkit.basicOptions.log.prefix = `[${config.addonName}]`;
@@ -37,6 +40,4 @@ if (!basicTool.getGlobal("Zotero")[config.addonInstance]) {
   ztoolkit.basicOptions.debug.disableDebugBridgePassword =
     addon.data.env === "development";
   Zotero[config.addonInstance] = addon;
-  // Trigger addon hook for initialization
-  addon.hooks.onStartup();
 }
