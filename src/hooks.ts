@@ -20,6 +20,16 @@ async function onStartup() {
   Zotero[config.addonInstance].views = new Views();
 
   Zotero[config.addonInstance].utils = new Utils();
+
+  ztoolkit.Menu.register("menuTools", {
+    tag: "menuitem",
+    id: `${config.addonRef}-open-window`,
+    label: config.addonName,
+    icon: `chrome://${config.addonRef}/content/icons/favicon.png`,
+    commandListener: () => {
+      Zotero[config.addonInstance].views.show();
+    },
+  });
 }
 
 function onShutdown(): void {

@@ -31,6 +31,36 @@ The XPI is generated under:
 builds/zotero-pageindex-gpt.xpi
 ```
 
+## How To Use
+
+1. Start Zotero in development mode:
+
+```powershell
+npm start
+```
+
+2. Open the GPT window from Zotero:
+
+- Menu: `Tools -> Zotero PageIndex GPT`
+- Shortcut: `Ctrl + /` on Windows/Linux, `Cmd + /` on macOS
+
+3. Configure the remote model in the GPT input box:
+
+```text
+/secretKey your_api_key
+/api https://api.longcat.chat/openai
+/model LongCat-2.0-Preview
+```
+
+4. Ask ordinary questions by typing in the GPT input box and pressing `Enter`.
+
+5. Ask the current PDF:
+
+- Start the PageIndex bridge first.
+- Open a PDF in Zotero.
+- Open the GPT window.
+- Type a question about the PDF, or click the `AskPDF` tag.
+
 ## PageIndex Bridge
 
 Use Python 3.10 or newer.
