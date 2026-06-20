@@ -1,5 +1,6 @@
 **/builds
 **/__pycache__
+.scaffold
 node_modules
 zotero-cmd.json
 .env

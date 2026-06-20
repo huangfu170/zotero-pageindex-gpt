@@ -39,6 +39,9 @@ builds/zotero-pageindex-gpt.xpi
 npm start
 ```
 
+This builds the plugin, writes a development extension proxy into the profile
+configured by `.env`, and starts Zotero with that profile.
+
 2. Open the GPT window from Zotero:
 
 - Menu: `Tools -> Zotero PageIndex GPT`
