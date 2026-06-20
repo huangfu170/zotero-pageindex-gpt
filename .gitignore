@@ -1,16 +1,6 @@
-# dot files
-.DS_Store
-
-# Node.js
+**/builds
+**/__pycache__
 node_modules
-pnpm-lock.yaml
-yarn.lock
-
-# TSC
-tsconfig.tsbuildinfo
-
-# Scaffold
+zotero-cmd.json
 .env
-.scaffold
-build
-logs
+**/test
