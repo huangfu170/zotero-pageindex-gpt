@@ -41,7 +41,11 @@ for (const stalePath of [
   path.join(profilePath, "startupCache"),
 ]) {
   if (fs.existsSync(stalePath)) {
-    fs.rmSync(stalePath, { recursive: true, force: true });
+    try {
+      fs.rmSync(stalePath, { recursive: true, force: true });
+    } catch (error) {
+      console.warn(`[Dev] Could not remove ${stalePath}: ${error.message}`);
+    }
   }
 }
 
