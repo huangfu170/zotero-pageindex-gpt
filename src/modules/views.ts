@@ -1347,6 +1347,21 @@ export default class Views {
         callback: callback
       })
     }
+
+    document.addEventListener("keydown", async (event: KeyboardEvent) => {
+      const isModifierPressed = Zotero.isMac ? event.metaKey : event.ctrlKey
+      const isSlashKey =
+        event.code == "Slash" ||
+        event.key == "/" ||
+        event.key == "?" ||
+        event.key == "、"
+      if (!isModifierPressed || !isSlashKey) {
+        return
+      }
+      event.preventDefault()
+      event.stopPropagation()
+      await callback()
+    })
     
     document.addEventListener(
       "keydown",

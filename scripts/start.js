@@ -31,6 +31,7 @@ if (args.help || args.h) {
     "--zotero(-z): Zotero exec key in zotero-cmd.json. Default the first one."
   );
   console.log("--profile(-p): Zotero profile path. Defaults to ZOTERO_PLUGIN_PROFILE_PATH in .env.");
+  console.log("--debugger: Enable Zotero remote debugger startup flag.");
   console.log("--print: Print resolved Zotero command without launching.");
   exit(0);
 }
@@ -43,7 +44,10 @@ const profile = resolveProjectPath(
   rootDir,
 );
 
-const zoteroArgs = ["--debugger", "--purgecaches"];
+const zoteroArgs = ["--purgecaches"];
+if (args.debugger) {
+  zoteroArgs.unshift("--debugger");
+}
 if (profile) {
   zoteroArgs.push("-profile", profile);
 }
