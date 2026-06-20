@@ -129,6 +129,9 @@ async function startup({ id, version, resourceURI, rootURI }, reason) {
    */
   const ctx = {
     rootURI,
+    require(moduleName) {
+      throw new Error(`Node require is unavailable in Zotero: ${moduleName}`);
+    },
   };
   ctx._globalThis = ctx;
 
