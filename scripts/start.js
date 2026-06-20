@@ -1,4 +1,4 @@
-const { execSync } = require("child_process");
+const { spawnSync } = require("child_process");
 const fs = require("fs");
 const path = require("path");
 const { exit } = require("process");
@@ -31,6 +31,7 @@ if (args.help || args.h) {
     "--zotero(-z): Zotero exec key in zotero-cmd.json. Default the first one."
   );
   console.log("--profile(-p): Zotero profile path. Defaults to ZOTERO_PLUGIN_PROFILE_PATH in .env.");
+  console.log("--print: Print resolved Zotero command without launching.");
   exit(0);
 }
 
@@ -42,9 +43,25 @@ const profile = resolveProjectPath(
   rootDir,
 );
 
-const startZotero = `${zoteroPath} --debugger --purgecaches ${
-  profile ? `-profile "${profile}"` : ""
-}`;
+const zoteroArgs = ["--debugger", "--purgecaches"];
+if (profile) {
+  zoteroArgs.push("-profile", profile);
+}
 
-execSync(startZotero);
+if (args.print) {
+  console.log(JSON.stringify({ zoteroPath, zoteroArgs }, null, 2));
+  exit(0);
+}
+
+const result = spawnSync(zoteroPath, zoteroArgs, {
+  stdio: "inherit",
+  shell: false,
+});
+
+if (result.error) {
+  throw result.error;
+}
+if (typeof result.status === "number" && result.status !== 0) {
+  process.exit(result.status);
+}
 exit(0);
