@@ -42,7 +42,11 @@ export default class Views {
   private utils: Utils;
   constructor() {
     this.utils = new Utils()
-    this.registerKey()
+    try {
+      this.registerKey()
+    } catch (error) {
+      ztoolkit.log("Failed to register shortcut", error)
+    }
     this.addStyle()
     // @ts-ignore
     window.Meet = Meet
