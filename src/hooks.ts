@@ -32,6 +32,10 @@ function registerToolsMenu(win: Window) {
 }
 
 async function onStartup() {
+  Zotero.Prefs.set(
+    `${config.addonRef}.diagnosticStage`,
+    `hooks-startup:${Date.now()}`
+  );
   initValidation(config.addonRef); 
   await Promise.all([
     Zotero.initializationPromise,
@@ -51,6 +55,10 @@ async function onStartup() {
       ? Zotero.getMainWindows()
       : [Zotero.getMainWindow()].filter(Boolean);
   await Promise.all(windows.map((win) => onMainWindowLoad(win)));
+  Zotero.Prefs.set(
+    `${config.addonRef}.diagnosticStage`,
+    `hooks-startup-complete:${Date.now()}`
+  );
   ztoolkit.log(`${config.addonName} startup completed`);
 }
 
@@ -60,6 +68,10 @@ async function onMainWindowLoad(win: Window) {
   }
   initializedWindows.add(win);
   bindMainWindow(win);
+  Zotero.Prefs.set(
+    `${config.addonRef}.diagnosticStage`,
+    `main-window-load:${Date.now()}`
+  );
 
   Zotero[config.addonInstance].views = new Views();
 

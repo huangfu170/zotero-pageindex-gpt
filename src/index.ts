@@ -3,8 +3,14 @@ import Addon from "./addon";
 import { config } from "../package.json";
 
 const basicTool = new BasicTool();
+const ZoteroGlobal =
+  typeof Zotero !== "undefined"
+    ? Zotero
+    : Components.classes["@zotero.org/Zotero;1"].getService(
+        Components.interfaces.nsISupports
+      ).wrappedJSObject;
 
-if (!basicTool.getGlobal("Zotero")[config.addonInstance]) {
+if (!ZoteroGlobal[config.addonInstance]) {
   function bindMainWindow(mainWindow?: Window) {
     const window = mainWindow || basicTool.getGlobal("window");
     const win = window as any;
@@ -29,9 +35,13 @@ if (!basicTool.getGlobal("Zotero")[config.addonInstance]) {
     _globalThis.document = window.document;
   }
 
-  _globalThis.Zotero = basicTool.getGlobal("Zotero");
+  _globalThis.Zotero = ZoteroGlobal;
   _globalThis.__bindMainWindow = bindMainWindow;
   _globalThis.addon = new Addon();
+  ZoteroGlobal.Prefs.set(
+    `${config.addonRef}.diagnosticStage`,
+    `index-created:${Date.now()}`
+  );
   _globalThis.ztoolkit = addon.data.ztoolkit;
   ztoolkit.basicOptions.log.prefix = `[${config.addonName}]`;
   ztoolkit.basicOptions.log.disableConsole = addon.data.env === "production";
@@ -39,5 +49,5 @@ if (!basicTool.getGlobal("Zotero")[config.addonInstance]) {
   ztoolkit.UI.basicOptions.ui.enableElementDOMLog = false
   ztoolkit.basicOptions.debug.disableDebugBridgePassword =
     addon.data.env === "development";
-  Zotero[config.addonInstance] = addon;
+  ZoteroGlobal[config.addonInstance] = addon;
 }

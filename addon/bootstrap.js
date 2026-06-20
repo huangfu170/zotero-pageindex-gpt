@@ -39,6 +39,14 @@ function reportBootstrapError(error) {
   throw error;
 }
 
+function markStage(stage) {
+  try {
+    if (typeof Zotero !== "undefined" && Zotero.Prefs) {
+      Zotero.Prefs.set("__addonRef__.diagnosticStage", `${stage}:${Date.now()}`);
+    }
+  } catch (_) {}
+}
+
 // In Zotero 6, bootstrap methods are called before Zotero is initialized, and using include.js
 // to get the Zotero XPCOM service would risk breaking Zotero startup. Instead, wait for the main
 // Zotero window to open and get the Zotero object from there.
@@ -96,6 +104,7 @@ async function startup({ id, version, resourceURI, rootURI }, reason) {
 
   rootURI = normalizeRootURI(rootURI, resourceURI);
   var services = getServices();
+  markStage("bootstrap-startup");
   Zotero.debug(`[${id}] bootstrap startup from ${rootURI}`);
 
   if (Zotero.platformMajorVersion >= 102) {
@@ -127,7 +136,9 @@ async function startup({ id, version, resourceURI, rootURI }, reason) {
   try {
     services.scriptloader.loadSubScript(scriptURI, ctx);
     Zotero.debug(`[${id}] loaded ${scriptURI}`);
+    markStage("bootstrap-script-loaded");
     await Zotero.__addonInstance__?.hooks?.onStartup();
+    markStage("bootstrap-startup-complete");
   } catch (error) {
     reportBootstrapError(error);
   }
