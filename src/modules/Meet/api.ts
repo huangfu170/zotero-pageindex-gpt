@@ -18,6 +18,9 @@ import {
   getGPTResponse
 } from "./OpenAI"
 import {
+  getAgentResponse
+} from "./Agent"
+import {
   ensureCurrentPDFIndexed,
   health,
   queryCurrentPDF
@@ -77,7 +80,8 @@ const Meet: {
     reFocus
   },
   OpenAI: {
-    getGPTResponse
+    getGPTResponse,
+    getAgentResponse
   },
   PageIndex: {
     health,

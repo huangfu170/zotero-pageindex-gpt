@@ -4,4 +4,5 @@
 node_modules
 zotero-cmd.json
 .env
+logs/
 **/test

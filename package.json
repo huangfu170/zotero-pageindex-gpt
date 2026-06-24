@@ -39,12 +39,14 @@
   },
   "homepage": "https://github.com/huangfu170/zotero-pageindex-gpt",
   "dependencies": {
+    "@openai/agents": "^0.12.0",
     "compute-cosine-similarity": "^1.0.0",
     "crypto-js": "^4.1.1",
     "langchain": "^0.0.66",
     "lighten-darken-color": "^1.0.0",
     "markdown-it": "^13.0.1",
     "markdown-it-mathjax3": "^4.3.2",
+    "openai": "^6.44.0",
     "terser": "^5.17.1",
     "zotero-plugin-toolkit": "^2.0.1"
   },

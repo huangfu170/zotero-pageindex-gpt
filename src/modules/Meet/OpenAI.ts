@@ -4,8 +4,43 @@ import { Document } from "langchain/document";
 import LocalStorage from "../localStorage";
 import Views from "../views";
 import Meet from "./api";
+import { getAgentResponse } from "./Agent";
 const similarity = require('compute-cosine-similarity');
 declare type RequestArg = { headers: any, api: string, body: Function, remove?: string | RegExp, process?: Function }
+const REQUEST_PRESETS = {
+  longcat: {
+    api: "https://api.longcat.chat/openai",
+    model: "LongCat-2.0-Preview"
+  },
+  deepseek: {
+    api: "https://api.deepseek.com",
+    model: "deepseek-chat"
+  },
+  openai: {
+    api: "https://api.openai.com",
+    model: "gpt-4o-mini"
+  },
+  openrouter: {
+    api: "https://openrouter.ai/api",
+    model: "openai/gpt-4o-mini"
+  }
+} as const;
+
+function normalizeApiBase(api: string | undefined) {
+  return (api || "").replace(/\/(?:v1)?\/?$/, "")
+}
+
+function getRequestConfig() {
+  const provider = String(Zotero.Prefs.get(`${config.addonRef}.apiProvider`) || "custom").trim().toLowerCase() as keyof typeof REQUEST_PRESETS | "custom"
+  const preset = REQUEST_PRESETS[provider as keyof typeof REQUEST_PRESETS]
+  const api = normalizeApiBase(
+    (Zotero.Prefs.get(`${config.addonRef}.api`) as string) ||
+    preset?.api ||
+    "https://api.longcat.chat/openai"
+  )
+  const model = ((Zotero.Prefs.get(`${config.addonRef}.model`) as string) || preset?.model || "LongCat-2.0-Preview")
+  return { provider: provider in REQUEST_PRESETS ? provider : "custom", api, model }
+}
 let chatID: string
 const requestArgs: RequestArg[] = [
   {
@@ -152,12 +187,99 @@ class OpenAIEmbeddings {
 
 export async function getGPTResponse(requestText: string) {
   const secretKey = Zotero.Prefs.get(`${config.addonRef}.secretKey`)
-  // 这里可以补充很多免费API，然后用户设置用哪个
-  if (!secretKey) { return await getGPTResponseBy(requestArgs[1], requestText) }
-  else { return await getGPTResponseByOpenAI(requestText) }
+  if (!secretKey) {
+    const message = "API Secret Key is not configured. Set it in Zotero preferences before asking.";
+    new ztoolkit.ProgressWindow("LLM", { closeOtherProgressWindows: true })
+      .createLine({ text: message, type: "fail" })
+      .show()
+    throw new Error(message)
+  }
+  try {
+    return await getGPTResponseByAgent(requestText)
+  } catch (error: any) {
+    const views = Zotero[config.addonInstance].views as Views
+    const lastMessage = views.messages[views.messages.length - 1]
+    if (lastMessage?.role === "user" && lastMessage?.content === requestText) {
+      views.messages.pop()
+    }
+    ztoolkit.log("OpenAI Agents SDK request failed, falling back to chat completions", error)
+    new ztoolkit.ProgressWindow("Agent fallback", { closeOtherProgressWindows: true })
+      .createLine({ text: error?.message || String(error), type: "fail" })
+      .createLine({ text: "Falling back to the legacy chat request.", type: "default" })
+      .show()
+    return await getGPTResponseByRemote(requestText)
+  }
+}
+
+async function getGPTResponseByAgent(requestText: string) {
+  const views = Zotero[config.addonInstance].views as Views
+  views.messages.push({ role: "user", content: requestText })
+  views.stopAlloutput()
+  views.setText("")
+
+  const responseText = await getAgentResponse(requestText)
+  if (!responseText) {
+    throw new Error("Empty response from OpenAI Agents SDK.")
+  }
+  views.setText(responseText, true)
+  views.messages.push({ role: "assistant", content: responseText })
+  return responseText
+}
+
+async function getGPTResponseByRemote(requestText: string) {
+  const views = Zotero[config.addonInstance].views as Views
+  const secretKey = Zotero.Prefs.get(`${config.addonRef}.secretKey`)
+  const temperature = Zotero.Prefs.get(`${config.addonRef}.temperature`)
+  const maxTokens = Zotero.Prefs.get(`${config.addonRef}.maxTokens`)
+  const { api, model } = getRequestConfig()
+  const chatNumber = Zotero.Prefs.get(`${config.addonRef}.chatNumber`) as number
+  const url = `${api}/v1/chat/completions`
+
+  views.messages.push({ role: "user", content: requestText })
+  views.stopAlloutput()
+  views.setText("")
+
+  try {
+    const result = await Zotero.HTTP.request("POST", url, {
+      headers: {
+        "Content-Type": "application/json",
+        "Authorization": `Bearer ${secretKey}`,
+      },
+      body: JSON.stringify({
+        model,
+        messages: views.messages.slice(-chatNumber),
+        stream: false,
+        temperature: Number(temperature),
+        max_tokens: Number(maxTokens),
+      }),
+      responseType: "json",
+    } as any)
+    const rawResult = result as any
+    const payload = rawResult.response ?? rawResult.xmlhttp?.response
+    const responseText = payload?.choices?.[0]?.message?.content || ""
+    if (!responseText) {
+      throw new Error(`Empty response from ${url}`)
+    }
+    views.setText(responseText, true)
+    views.messages.push({ role: "assistant", content: responseText })
+    return responseText
+  } catch (error: any) {
+    let message = error?.message || String(error)
+    try {
+      const parsed = JSON.parse(error?.xmlhttp?.response || "{}").error
+      message = parsed?.message || message
+    } catch {}
+    const errorText = `# LLM request failed\n> ${url}\n\n${message}`
+    views.setText(errorText, true, false, false)
+    new ztoolkit.ProgressWindow("LLM Error", { closeOtherProgressWindows: true })
+      .createLine({ text: message, type: "fail" })
+      .show()
+    throw new Error(message)
+  }
 }
 
 /**
+
  * 所有getGPTResponseTextByXXX参照此函数实现
  * gpt-3.5-turbo / gpt-4
  * @param requestText 
