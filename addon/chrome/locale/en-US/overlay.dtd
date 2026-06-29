@@ -1,7 +1,19 @@
-<!ENTITY zotero.__addonRef__.pref.title "Addon Template Example">
+<!ENTITY zotero.__addonRef__.pref.title "Zotero PageIndex GPT">
 <!ENTITY zotero.__addonRef__.itemmenu.test.label "addon template">
 <!ENTITY zotero.__addonRef__.pref.enable.label "Enable">
 <!ENTITY zotero.__addonRef__.pref.input.label "Input">
+<!ENTITY zotero.__addonRef__.pref.llmGroup.label "LLM Settings">
+<!ENTITY zotero.__addonRef__.pref.api.label "API Base URL">
+<!ENTITY zotero.__addonRef__.pref.secretKey.label "API Secret Key">
+<!ENTITY zotero.__addonRef__.pref.model.label "Model">
+<!ENTITY zotero.__addonRef__.pref.maxTokens.label "Max Tokens">
+<!ENTITY zotero.__addonRef__.pref.temperature.label "Temperature">
+<!ENTITY zotero.__addonRef__.pref.pageIndexGroup.label "PageIndex Settings">
+<!ENTITY zotero.__addonRef__.pref.pageIndexEnabled.label "Enable PageIndex">
+<!ENTITY zotero.__addonRef__.pref.deltaTime.label "Delta Time (ms)">
+<!ENTITY zotero.__addonRef__.pref.chatNumber.label "Chat Item Count">
+<!ENTITY zotero.__addonRef__.pref.relatedNumber.label "Related Item Count">
+<!ENTITY zotero.__addonRef__.pref.embeddingBatchNum.label "Embedding Batch Count">
 
 <!ENTITY zotero.__addonRef__.help.version.label "__addonName__ VERSION __buildVersion__">
 <!ENTITY zotero.__addonRef__.help.releasetime.label "Build __buildTime__">

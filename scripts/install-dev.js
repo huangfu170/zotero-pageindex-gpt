@@ -9,6 +9,13 @@ const env = readDotEnv(rootDir);
 const profilePath = resolveProjectPath(env.ZOTERO_PLUGIN_PROFILE_PATH, rootDir);
 const addonPath = path.join(rootDir, "builds", "addon");
 const xpiPath = path.join(rootDir, "builds", `${pkg.name}.xpi`);
+const localSecretKey = (
+  env.ZOTERO_PLUGIN_LONGCAT_SECRET_KEY ||
+  env.LONGCAT_SECRET_KEY ||
+  process.env.ZOTERO_PLUGIN_LONGCAT_SECRET_KEY ||
+  process.env.LONGCAT_SECRET_KEY ||
+  ""
+).trim();
 
 if (!profilePath) {
   console.error("Missing ZOTERO_PLUGIN_PROFILE_PATH in .env.");
@@ -33,6 +40,11 @@ const managedPrefs = {
   "extensions.enabledScopes": 15,
   "xpinstall.signatures.required": false,
   "extensions.install.requireBuiltInCerts": false,
+  [`extensions.zotero.${config.addonRef}.api`]: "https://api.longcat.chat/openai",
+  [`extensions.zotero.${config.addonRef}.secretKey`]: localSecretKey,
+  [`extensions.zotero.${config.addonRef}.model`]: "LongCat-2.0-Preview",
+  [`extensions.zotero.${config.addonRef}.maxTokens`]: 2000,
+  [`extensions.zotero.${config.addonRef}.temperature`]: "1.0",
 };
 
 function formatPref(name, value) {

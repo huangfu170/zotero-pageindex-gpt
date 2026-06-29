@@ -7,6 +7,7 @@ class Addon {
     alive: boolean;
     // Env type, see build.js
     env: "development" | "production";
+    preferencePaneID?: string;
     // ztoolkit: MyToolkit;
     ztoolkit: ZoteroToolkit;
     locale?: {

@@ -41,6 +41,7 @@ export default class Views {
   private outputContainer!: HTMLDivElement;
   private dotsContainer!: HTMLDivElement;
   private tagsContainer!: HTMLDivElement;
+  private keepNextOutputVisible = false;
   private utils: Utils;
   constructor() {
     this.utils = new Utils()
@@ -98,6 +99,63 @@ export default class Views {
             marigin: 0;
             padding: 0;
             text-align: justify;
+          }
+          #${this.id} .agent-tool-trace {
+            border-bottom: 1px solid rgba(89, 192, 188, .18);
+            margin-bottom: .5em;
+            padding-bottom: .35em;
+          }
+          #${this.id} .agent-tool-call {
+            margin: .35em 0;
+            border: 1px solid rgba(89, 192, 188, .25);
+            border-radius: 6px;
+            background: rgba(255, 255, 255, .72);
+            overflow: hidden;
+          }
+          #${this.id} .agent-tool-call-header {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: .5em;
+            padding: .35em .55em;
+            font-size: .72em;
+            color: #374151;
+          }
+          #${this.id} .agent-tool-call-name {
+            font-weight: 700;
+            color: #0f766e;
+            overflow-wrap: anywhere;
+          }
+          #${this.id} .agent-tool-call-status {
+            flex: none;
+            font-size: .9em;
+            color: #6b7280;
+          }
+          #${this.id} .agent-tool-call-details {
+            border-top: 1px solid rgba(89, 192, 188, .18);
+            padding: .25em .55em .55em;
+          }
+          #${this.id} .agent-tool-call-details + .agent-tool-call-details {
+            padding-top: .15em;
+          }
+          #${this.id} .agent-tool-call-details summary {
+            cursor: pointer;
+            font-size: .72em;
+            color: #4b5563;
+            user-select: none;
+          }
+          #${this.id} .agent-tool-call-details pre {
+            max-height: 18em;
+            overflow: auto;
+            margin: .4em 0 0;
+            padding: .55em;
+            border-radius: 4px;
+            background: rgba(17, 24, 39, .04);
+            color: #1f2937;
+            white-space: pre-wrap;
+            overflow-wrap: anywhere;
+            line-height: 1.45em;
+            font-size: .72em;
           }
           .gpt-menu-box .menu-item:hover, .gpt-menu-box .menu-item.selected{
             background-color: rgba(89, 192, 188, .23) !important;
@@ -223,23 +281,135 @@ export default class Views {
     }
     md2html()
     ready()
+    this.keepInViewport()
     // @ts-ignore
     scrollToNewLine && this.outputContainer.scrollBy(0, this.outputContainer.scrollTopMax)
     if (isDone) {
       // 任何实时预览的错误到最后，应该因为下面这句消失
       outputDiv.innerHTML = markdown.render(text)
+      this.keepInViewport()
       if (isRecord) {
         this._history.push({ input: Meet.Global.input, output: text })
       }
       outputDiv.classList.remove("streaming")
       if (this.isInNote) {
-        this.hide()
+        const hasAgentToolTrace = Boolean(this.outputContainer.querySelector(".agent-tool-trace"))
+        const shouldKeepVisible = this.keepNextOutputVisible || hasAgentToolTrace
+        this.keepNextOutputVisible = false
+        if (!shouldKeepVisible) {
+          this.hide()
+        }
         // 下面是完成回答后写入 Better Notes 主笔记的两种方案
         Meet.BetterNotes.insertEditorText(outputDiv.innerHTML)
         // window.setTimeout(async () => {
         //   Meet.BetterNotes.insertEditorText(await Zotero.BetterNotes.api.convert.md2html(text))
         // })
       }
+    }
+  }
+
+  private stringifyToolTraceValue(value: unknown) {
+    if (value instanceof Error) {
+      return value.stack || value.message;
+    }
+    if (typeof value === "string") {
+      return value;
+    }
+    try {
+      return JSON.stringify(value, null, 2);
+    } catch {
+      return String(value);
+    }
+  }
+
+  public clearAgentToolTrace() {
+    this.outputContainer?.querySelector(".agent-tool-trace")?.remove();
+  }
+
+  public keepNextAnswerVisible() {
+    this.keepNextOutputVisible = true;
+  }
+
+  private getAgentToolTraceContainer() {
+    this.outputContainer.style.display = "";
+    let traceContainer = this.outputContainer.querySelector(".agent-tool-trace") as HTMLDivElement | null;
+    if (!traceContainer) {
+      traceContainer = document.createElement("div");
+      traceContainer.className = "agent-tool-trace";
+      const markdownBody = this.outputContainer.querySelector(".markdown-body");
+      this.outputContainer.insertBefore(traceContainer, markdownBody || this.outputContainer.firstChild);
+    }
+    return traceContainer;
+  }
+
+  public addAgentToolTrace(toolName: string, input: unknown) {
+    const traceContainer = this.getAgentToolTraceContainer();
+    const id = `agent-tool-${Date.now()}-${Math.random().toString(36).slice(2)}`;
+    const item = document.createElement("div");
+    item.className = "agent-tool-call";
+    item.setAttribute("data-trace-id", id);
+
+    const header = document.createElement("div");
+    header.className = "agent-tool-call-header";
+
+    const name = document.createElement("span");
+    name.className = "agent-tool-call-name";
+    name.textContent = toolName;
+
+    const status = document.createElement("span");
+    status.className = "agent-tool-call-status";
+    status.textContent = "calling";
+
+    const details = document.createElement("details");
+    details.className = "agent-tool-call-details agent-tool-call-input";
+
+    const summary = document.createElement("summary");
+    summary.textContent = "Input";
+
+    const pre = document.createElement("pre");
+    pre.textContent = this.stringifyToolTraceValue(input);
+
+    header.append(name, status);
+    details.append(summary, pre);
+    item.append(header, details);
+    traceContainer.append(item);
+    // @ts-ignore
+    this.outputContainer.scrollBy(0, this.outputContainer.scrollTopMax);
+    return id;
+  }
+
+  public updateAgentToolTrace(id: string | void, output: unknown, isError = false) {
+    if (!id) {
+      return;
+    }
+    const item = this.outputContainer?.querySelector(`[data-trace-id="${id}"]`) as HTMLDivElement | null;
+    if (!item) {
+      return;
+    }
+    const status = item.querySelector(".agent-tool-call-status") as HTMLSpanElement | null;
+    let details = item.querySelector(".agent-tool-call-result") as HTMLDetailsElement | null;
+    if (!details) {
+      details = document.createElement("details");
+      details.className = "agent-tool-call-details agent-tool-call-result";
+      const summary = document.createElement("summary");
+      const pre = document.createElement("pre");
+      details.append(summary, pre);
+      item.append(details);
+    }
+    const summary = details.querySelector("summary");
+    const pre = details.querySelector("pre");
+    if (status) {
+      status.textContent = isError ? "failed" : "done";
+      status.style.color = isError ? "#b91c1c" : "#047857";
+    }
+    if (summary) {
+      summary.textContent = isError ? "Error" : "Result";
+    }
+    if (pre) {
+      pre.textContent = this.stringifyToolTraceValue(output);
+    }
+    if (details) {
+      details.open = false;
     }
   }
 
@@ -417,6 +587,7 @@ export default class Views {
         alignItems: "center",
         position: "fixed",
         width: Zotero.Prefs.get(`${config.addonRef}.width`) as string,
+        maxHeight: "80vh",
         // height: "4em",
         fontSize: "18px",
         borderRadius: "10px",
@@ -574,12 +745,12 @@ export default class Views {
           } else if (key == "help"){ 
             that.setText(help, true, false)
           } else if (key == "report") { 
-            const secretKey = Zotero.Prefs.get(`${config.addonRef}.secretKey`) as string
+            const secretKey = String(Zotero.Prefs.get(`${config.addonRef}.secretKey`) || "")
             // window.setTimeout(() => {
             //   Zotero.launchURL("https://platform.openai.com/account/usage")
             // }, 1000)
-            return that.setText(`\`api\` ${Zotero.Prefs.get(`${config.addonRef}.api`)}\n\`secretKey\` ${secretKey.slice(0, 3) + "..." + secretKey.slice(-4)}\n\`model\` ${Zotero.Prefs.get(`${config.addonRef}.model`)}\n\`temperature\` ${Zotero.Prefs.get(`${config.addonRef}.temperature`)}`, true, false)
-          } else if (["secretKey", "model", "api", "temperature", "deltaTime", "width", "tagsMore", "chatNumber", "relatedNumber"].indexOf(key) >= 0) {  
+            return that.setText(`\`apiProvider\` ${Zotero.Prefs.get(`${config.addonRef}.apiProvider`)}\n\`api\` ${Zotero.Prefs.get(`${config.addonRef}.api`)}\n\`secretKey\` ${secretKey.slice(0, 3) + "..." + secretKey.slice(-4)}\n\`model\` ${Zotero.Prefs.get(`${config.addonRef}.model`)}\n\`maxTokens\` ${Zotero.Prefs.get(`${config.addonRef}.maxTokens`)}\n\`temperature\` ${Zotero.Prefs.get(`${config.addonRef}.temperature`)}`, true, false)
+           } else if (["secretKey", "model", "apiProvider", "api", "maxTokens", "temperature", "deltaTime", "width", "tagsMore", "chatNumber", "relatedNumber"].indexOf(key) >= 0) {  
             if (value?.length > 0) {
               if (value == "default") {
                 Zotero.Prefs.clear(`${config.addonRef}.${key}`)
@@ -588,9 +759,37 @@ export default class Views {
                 return 
               }
               switch (key) {
+                case "apiProvider": {
+                  const normalizedProvider = value.toLowerCase()
+                  let apiConfigs: any[] = []
+                  try {
+                    apiConfigs = JSON.parse(String(Zotero.Prefs.get(`${config.addonRef}.apiConfigs`) || "[]"))
+                  } catch {}
+                  const apiConfig = apiConfigs.find((item) => item.id === normalizedProvider)
+                  const supportsProvider = Boolean(apiConfig) || ["longcat", "deepseek", "custom"].indexOf(normalizedProvider) >= 0
+                  if (!supportsProvider) {
+                    return that.setText("Invalid value, please enter a saved API configuration id.", true, false)
+                  }
+                  Zotero.Prefs.set(`${config.addonRef}.${key}`, normalizedProvider)
+                  if (apiConfig) {
+                    Zotero.Prefs.set(`${config.addonRef}.api`, apiConfig.api)
+                    Zotero.Prefs.set(`${config.addonRef}.model`, apiConfig.model)
+                  if (typeof apiConfig.secretKey === "string" && apiConfig.secretKey.trim()) {
+                    Zotero.Prefs.set(`${config.addonRef}.secretKey`, apiConfig.secretKey)
+                  }
+                  } else if (normalizedProvider === "longcat") {
+                    Zotero.Prefs.set(`${config.addonRef}.api`, "https://api.longcat.chat/openai")
+                    Zotero.Prefs.set(`${config.addonRef}.model`, "LongCat-2.0-Preview")
+                  } else if (normalizedProvider === "deepseek") {
+                    Zotero.Prefs.set(`${config.addonRef}.api`, "https://api.deepseek.com")
+                    Zotero.Prefs.set(`${config.addonRef}.model`, "deepseek-chat")
+                  }
+                  break
+                }
                 case "deltaTime":
                 case "relatedNumber":
                 case "chatNumber":
+                case "maxTokens":
                   Zotero.Prefs.set(`${config.addonRef}.${key}`, Number(value))
                   break;
                 case "width":
@@ -650,7 +849,7 @@ export default class Views {
         that.isInNote && Meet.BetterNotes.reFocus()
       } else if (event.key == "/" && text == "/" && that.container.querySelector("input")?.style.display != "none") {
         const rect = that.container.querySelector("input")!.getBoundingClientRect()
-        const commands = ["clear", "help", "report", "secretKey", "model", "api", "temperature", "chatNumber", "relatedNumber" , "deltaTime", "tagsMore", "width"]
+        const commands = ["clear", "help", "report", "secretKey", "apiProvider", "model", "api", "maxTokens", "temperature", "chatNumber", "relatedNumber" , "deltaTime", "tagsMore", "width"]
         that.createMenuNode(
           { x: rect.left, y: rect.top + rect.height, width: 200, height: 350 / 12 * commands.length  },
           commands.map(name => {
@@ -676,7 +875,7 @@ export default class Views {
         width: "calc(100% - 1em)",
         backgroundColor: "rgba(89, 192, 188, .08)",
         color: "#374151",
-        maxHeight: document.documentElement.getBoundingClientRect().height * .5 + "px",
+        maxHeight: "calc(80vh - 6.5em)",
         overflowY: "auto",
         overflowX: "hidden",
         padding: "0.25em 0.5em",
@@ -835,6 +1034,30 @@ export default class Views {
     return container
   }
 
+  private keepInViewport() {
+    if (!this.container || this.container.style.display === "none") {
+      return;
+    }
+    const margin = 8;
+    const rect = this.container.getBoundingClientRect();
+    let left = rect.left;
+    let top = rect.top;
+    if (rect.right > window.innerWidth - margin) {
+      left -= rect.right - window.innerWidth + margin;
+    }
+    if (rect.bottom > window.innerHeight - margin) {
+      top -= rect.bottom - window.innerHeight + margin;
+    }
+    if (left < margin) {
+      left = margin;
+    }
+    if (top < margin) {
+      top = margin;
+    }
+    this.container.style.left = `${left}px`;
+    this.container.style.top = `${top}px`;
+  }
+
   /**
    * 渲染标签，要根据position排序
    */
@@ -945,18 +1168,23 @@ export default class Views {
     outputDiv.setAttribute("pureText", "");
     let text = tag.text.replace(/^#.+\n/, "")
     // 旧版语法不宜传播，MD语法会被转义
+    try {
     for (let rawString of text.match(/```j(?:ava)?s(?:cript)?\n([\s\S]+?)\n```/g)! || []) {
       let codeString = rawString.match(/```j(?:ava)?s(?:cript)?\n([\s\S]+?)\n```/)![1]
       try {
         text = text.replace(rawString, await window.eval(`${codeString}`))
-      } catch { }
+      } catch (error: any) {
+        throw new Error(error?.message || String(error))
+      }
     }
     // 新版语法容易分享传播
     for (let rawString of text.match(/\$\{[\s\S]+?\}/g)! || []) {
       let codeString = rawString.match(/\$\{([\s\S]+?)\}/)![1]
       try {
         text = text.replace(rawString, await window.eval(`${codeString}`))
-      } catch {  }
+      } catch (error: any) {
+        throw new Error(error?.message || String(error))
+      }
     }
     popunWin.createLine({ text: `Characters ${text.length}`, type: "success" })
     popunWin.createLine({ text: "Answering...", type: "default" })
@@ -977,6 +1205,13 @@ export default class Views {
       popunWin.createLine({ text: "Done", type: "fail" })
     }
     popunWin.startCloseTimer(3000)
+    } catch (error: any) {
+      const message = error?.message || String(error)
+      this.dotsContainer?.classList.remove("loading")
+      this.setText(`# ${tag.tag} failed\n\n${message}`, true, false, false)
+      popunWin.createLine({ text: message, type: "fail" })
+      popunWin.startCloseTimer(8000)
+    }
   }
 
   /**
@@ -1086,11 +1321,15 @@ export default class Views {
   public hide() {
     this.container.style.display = "none"
     ztoolkit.log(this._ids)
-    this._ids.map(id=>id.id).forEach(window.clearInterval)
+    this._ids.map(id=>id.id).forEach((id) => window.clearInterval(id))
   }
 
   public stopAlloutput() {
-    this._ids.filter(id => id.type == "output").map(i => i.id).forEach(window.clearInterval)
+    this._ids.filter(id => id.type == "output").map(i => i.id).forEach((id) => window.clearInterval(id))
+  }
+
+  private isActive() {
+    return !!this.container && this.container.style.display !== "none";
   }
 
   /**
@@ -1355,6 +1594,16 @@ export default class Views {
     }
 
     document.addEventListener("keydown", async (event: KeyboardEvent) => {
+      if (event.key === "Escape" && this.isActive()) {
+        event.preventDefault();
+        event.stopPropagation();
+        this.hide();
+        this.container.remove();
+        if (this.isInNote) {
+          Meet.BetterNotes.reFocus();
+        }
+        return;
+      }
       const isModifierPressed = Zotero.isMac ? event.metaKey : event.ctrlKey
       const isSlashKey =
         event.code == "Slash" ||
@@ -1373,15 +1622,29 @@ export default class Views {
       "keydown",
       async (event: any) => {
         // 笔记内按空格
+        const explicitOriginalTarget =
+          event.explicitOriginalTarget ||
+          event.originalTarget ||
+          event.target;
+        const explicitBaseURI =
+          explicitOriginalTarget?.baseURI ||
+          explicitOriginalTarget?.ownerDocument?.baseURI;
         if (
           Zotero_Tabs.selectedIndex == 1 &&
-          event.explicitOriginalTarget.baseURI.indexOf("note-editor") >= 0 &&
+          explicitBaseURI &&
+          explicitBaseURI.indexOf("note-editor") >= 0 &&
           event.code == "Space" &&
           Zotero.BetterNotes.api.editor
         ) {
           this.isInNote = true
-          const doc = event.explicitOriginalTarget.ownerDocument
+          const doc = explicitOriginalTarget?.ownerDocument
+          if (!doc) {
+            return
+          }
           let selection = doc.getSelection()
+          if (!selection || selection.rangeCount === 0) {
+            return
+          }
           let range = selection.getRangeAt(0);
           const span = range.endContainer
           let text = await Meet.BetterNotes.getEditorText(span)
@@ -1399,9 +1662,13 @@ export default class Views {
         if (
           (event.shiftKey && event.key.toLowerCase() == "?") ||
           (event.key == "/" && Zotero.isMac)) {
+          const originalTarget = event.originalTarget as any
+          if (!originalTarget) {
+            return;
+          }
           if (
-            event.originalTarget.isContentEditable ||
-            "value" in event.originalTarget
+            originalTarget.isContentEditable ||
+            "value" in originalTarget
           ) {
             return;
           }

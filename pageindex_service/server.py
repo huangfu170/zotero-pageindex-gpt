@@ -5,6 +5,7 @@ import hashlib
 import json
 import os
 import re
+import shutil
 import sys
 import threading
 import traceback
@@ -20,17 +21,43 @@ DEFAULT_HOST = "127.0.0.1"
 DEFAULT_PORT = 8765
 DEFAULT_PAGEINDEX_REPO = r"D:\项目\PageIndex"
 DEFAULT_REMOTE_API_BASE = "https://api.longcat.chat/openai"
+DEFAULT_REMOTE_API_KEY = "ak_2J27rC4Oi3jK2aK0ln8GO7Mp2x82D"
 DEFAULT_REMOTE_MODEL = "openai/LongCat-2.0-Preview"
 MAP_FILE = "zotero_map.json"
 
+if not Path(DEFAULT_PAGEINDEX_REPO).exists():
+    DEFAULT_PAGEINDEX_REPO = str(Path(__file__).resolve().parents[2] / "PageIndex")
+
 
 def add_pageindex_to_path(repo: str) -> None:
-    if sys.version_info < (3, 10):
-        raise RuntimeError("PageIndex requires Python 3.10 or newer.")
     repo_path = Path(repo).expanduser().resolve()
     if not repo_path.exists():
         raise FileNotFoundError(f"PageIndex repo not found: {repo_path}")
+    if sys.version_info < (3, 10):
+        repo_path = prepare_pageindex_py39_compat(repo_path)
     sys.path.insert(0, str(repo_path))
+
+
+def prepare_pageindex_py39_compat(repo_path: Path) -> Path:
+    source_pkg = repo_path / "pageindex"
+    if not source_pkg.exists():
+        raise FileNotFoundError(f"PageIndex package not found: {source_pkg}")
+
+    compat_root = Path(__file__).resolve().parents[1] / ".scaffold" / "pageindex_py39"
+    compat_pkg = compat_root / "pageindex"
+    if compat_pkg.exists():
+        shutil.rmtree(compat_pkg)
+    compat_root.mkdir(parents=True, exist_ok=True)
+    shutil.copytree(source_pkg, compat_pkg)
+
+    future_line = "from __future__ import annotations\n"
+    for py_file in compat_pkg.rglob("*.py"):
+        text = py_file.read_text(encoding="utf-8")
+        if "from __future__ import annotations" in text.splitlines()[:5]:
+            continue
+        py_file.write_text(future_line + text, encoding="utf-8")
+    print(f"Using Python 3.9 compatibility copy: {compat_pkg}", flush=True)
+    return compat_root
 
 
 class JsonStore:
@@ -59,6 +86,7 @@ class PageIndexService:
     def __init__(self, pageindex_repo: str, workspace: str, model: str | None = None):
         os.environ.setdefault("OPENAI_API_BASE", DEFAULT_REMOTE_API_BASE)
         os.environ.setdefault("OPENAI_BASE_URL", DEFAULT_REMOTE_API_BASE)
+        os.environ.setdefault("OPENAI_API_KEY", DEFAULT_REMOTE_API_KEY)
         os.environ.setdefault("PAGEINDEX_RETRIEVE_MODEL", DEFAULT_REMOTE_MODEL)
         if os.getenv("LONGCAT_API_KEY") and not os.getenv("OPENAI_API_KEY"):
             os.environ["OPENAI_API_KEY"] = os.getenv("LONGCAT_API_KEY", "")
@@ -236,7 +264,8 @@ class PageIndexService:
             content = response.choices[0].message.content or ""
             parsed = self._parse_page_selection(content)
             if parsed:
-                return parsed["pages"], parsed.get("reason", "")
+                pages = self._expand_pages(doc_id, parsed["pages"], max_pages)
+                return pages, parsed.get("reason", "")
         except Exception as exc:
             fallback, reason = self._fallback_pages(doc_id, max_pages)
             return fallback, f"LLM page selection failed; fallback used: {exc}. {reason}"
@@ -260,6 +289,59 @@ class PageIndexService:
         page_count = int(meta.get("page_count") or 1)
         end = max(1, min(page_count, max_pages))
         return f"1-{end}" if end > 1 else "1", "Using the first pages as a conservative fallback."
+
+    def _expand_pages(self, doc_id: str, pages: str, max_pages: int) -> str:
+        meta = json.loads(self.client.get_document(doc_id))
+        page_count = int(meta.get("page_count") or 1)
+        target = max(1, min(page_count, max_pages))
+        selected = self._pages_to_list(pages, page_count)
+        if not selected:
+            return self._fallback_pages(doc_id, max_pages)[0]
+
+        expanded = set(selected)
+        center = selected[len(selected) // 2]
+        radius = 1
+        while len(expanded) < target and radius <= page_count:
+            for candidate in (center - radius, center + radius):
+                if 1 <= candidate <= page_count:
+                    expanded.add(candidate)
+                    if len(expanded) >= target:
+                        break
+            radius += 1
+        return self._list_to_pages(sorted(expanded)[:target])
+
+    @staticmethod
+    def _pages_to_list(pages: str, page_count: int) -> list[int]:
+        result: set[int] = set()
+        for part in pages.split(","):
+            part = part.strip()
+            if not part:
+                continue
+            if "-" in part:
+                start, end = [int(value) for value in part.split("-", 1)]
+                if start > end:
+                    start, end = end, start
+                result.update(range(max(1, start), min(page_count, end) + 1))
+            else:
+                page = int(part)
+                if 1 <= page <= page_count:
+                    result.add(page)
+        return sorted(result)
+
+    @staticmethod
+    def _list_to_pages(pages: list[int]) -> str:
+        if not pages:
+            return "1"
+        ranges = []
+        start = prev = pages[0]
+        for page in pages[1:]:
+            if page == prev + 1:
+                prev = page
+                continue
+            ranges.append(f"{start}-{prev}" if start != prev else str(start))
+            start = prev = page
+        ranges.append(f"{start}-{prev}" if start != prev else str(start))
+        return ",".join(ranges)
 
 
 def make_handler(service: PageIndexService):
@@ -328,7 +410,10 @@ def main() -> None:
     parser.add_argument("--pageindex-repo", default=os.getenv("PAGEINDEX_REPO", DEFAULT_PAGEINDEX_REPO))
     parser.add_argument(
         "--workspace",
-        default=os.getenv("PAGEINDEX_WORKSPACE", str(Path.home() / ".zotero-gpt-pageindex")),
+        default=os.getenv(
+            "PAGEINDEX_WORKSPACE",
+            str(Path(__file__).resolve().parents[1] / ".scaffold" / "pageindex_workspace"),
+        ),
     )
     parser.add_argument("--model", default=os.getenv("PAGEINDEX_INDEX_MODEL"))
     args = parser.parse_args()
@@ -339,8 +424,8 @@ def main() -> None:
         model=args.model,
     )
     server = ThreadingHTTPServer((args.host, args.port), make_handler(service))
-    print(f"PageIndex service listening on http://{args.host}:{args.port}")
-    print(f"Workspace: {args.workspace}")
+    print(f"PageIndex service listening on http://{args.host}:{args.port}", flush=True)
+    print(f"Workspace: {args.workspace}", flush=True)
     server.serve_forever()
 
 

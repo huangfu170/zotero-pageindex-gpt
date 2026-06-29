@@ -4,7 +4,7 @@ import { Document } from "langchain/document";
 import LocalStorage from "../localStorage";
 import Views from "../views";
 import Meet from "./api";
-import { getAgentResponse } from "./Agent";
+import { getRuntimeLogPath, runtimeLog, withRuntimeLog } from "./RuntimeLogger";
 const similarity = require('compute-cosine-similarity');
 declare type RequestArg = { headers: any, api: string, body: Function, remove?: string | RegExp, process?: Function }
 const REQUEST_PRESETS = {
@@ -81,6 +81,11 @@ const requestArgs: RequestArg[] = [
  * @returns 
  */
 export async function similaritySearch(queryText: string, docs: Document[], obj: { key: string }) {
+  return withRuntimeLog("OpenAI", "similarity_search", {
+    queryText,
+    inputDocCount: docs.length,
+    key: obj.key,
+  }, async () => {
   const storage = Meet.Global.storage = Meet.Global.storage || new LocalStorage(config.addonRef)
   await storage.lock.promise;
   const embeddings = new OpenAIEmbeddings() as any
@@ -113,7 +118,13 @@ export async function similaritySearch(queryText: string, docs: Document[], obj:
     return docs[pp.indexOf(p)]
   })
   // return docs.slice(0, relatedNumber)
-  return docs.sort((a, b) => b.pageContent.length - a.pageContent.length).slice(0, relatedNumber)
+  const result = docs.sort((a, b) => b.pageContent.length - a.pageContent.length).slice(0, relatedNumber)
+  runtimeLog("OpenAI", "similarity_search:selected", {
+    relatedNumber,
+    selectedDocCount: result.length,
+  })
+  return result
+  })
 }
 
 
@@ -121,13 +132,17 @@ class OpenAIEmbeddings {
   constructor() {
   }
   private async request(input: string[]) {
-    const views = Zotero.ZoteroGPT.views as Views
-    let api = Zotero.Prefs.get(`${config.addonRef}.api`) as string
-    api = api.replace(/\/(?:v1)?\/?$/, "")
+    const views = Zotero[config.addonInstance].views as Views
+    const { api } = getRequestConfig()
     const secretKey = Zotero.Prefs.get(`${config.addonRef}.secretKey`)
     const split_len = Number(Zotero.Prefs.get(`${config.addonRef}.embeddingBatchNum`) || 10)
     let res
     const url = `${api}/v1/embeddings`
+    runtimeLog("OpenAI", "embeddings:start", {
+      url,
+      inputCount: input.length,
+      batchSize: split_len,
+    })
     if (!secretKey) {
       new ztoolkit.ProgressWindow(url, { closeOtherProgressWindows: true })
         .createLine({ text: "Your secretKey is not configured.", type: "default" })
@@ -137,10 +152,18 @@ class OpenAIEmbeddings {
     let final_embeddings: any[] = []
     for (let i = 0; i < input.length; i += split_len) {
 
-      const chunk = input.slice(i, i + split_len)
-      ztoolkit.log("input", chunk)
+      const chunk = input.slice(i, i + split_len)
+      runtimeLog("OpenAI", "embeddings:batch_start", {
+        batchStart: i,
+        batchCount: chunk.length,
+        textLengths: chunk.map((text) => text.length),
+      })
       try {
-        res = await Zotero.HTTP.request(
+        res = await withRuntimeLog("OpenAI", "embeddings:request", {
+          url,
+          batchStart: i,
+          batchCount: chunk.length,
+        }, () => Zotero.HTTP.request(
           "POST",
           url,
           {
@@ -154,8 +177,12 @@ class OpenAIEmbeddings {
               input: chunk
             }),
           }
-        )
+        ))
       } catch (error: any) {
+        runtimeLog("OpenAI", "embeddings:error", {
+          batchStart: i,
+          message: error?.message || String(error),
+        }, "error")
         try {
           error = error.xmlhttp.response?.error
           views.setText(`# ${error.code}\n> ${url}\n\n**${error.type}**\n${error.message}`, true)
@@ -171,7 +198,10 @@ class OpenAIEmbeddings {
       if (res?.response?.data) {
         final_embeddings = final_embeddings.concat(res.response.data.map((i: any) => i.embedding))
       }
-    }
+    }
+    runtimeLog("OpenAI", "embeddings:end", {
+      outputCount: final_embeddings.length,
+    })
     return final_embeddings
   }
 
@@ -186,7 +216,12 @@ class OpenAIEmbeddings {
 
 
 export async function getGPTResponse(requestText: string) {
+  runtimeLog("OpenAI", "get_gpt_response:start", {
+    requestText,
+    logPath: getRuntimeLogPath(),
+  })
   const secretKey = Zotero.Prefs.get(`${config.addonRef}.secretKey`)
+  // 这里可以补充很多免费API，然后用户设置用哪个
   if (!secretKey) {
     const message = "API Secret Key is not configured. Set it in Zotero preferences before asking.";
     new ztoolkit.ProgressWindow("LLM", { closeOtherProgressWindows: true })
@@ -195,38 +230,60 @@ export async function getGPTResponse(requestText: string) {
     throw new Error(message)
   }
   try {
-    return await getGPTResponseByAgent(requestText)
+    const response = await getGPTResponseByAgent(requestText)
+    runtimeLog("OpenAI", "get_gpt_response:end", {
+      mode: "agent",
+      responseLength: String(response || "").length,
+    })
+    return response
   } catch (error: any) {
     const views = Zotero[config.addonInstance].views as Views
     const lastMessage = views.messages[views.messages.length - 1]
     if (lastMessage?.role === "user" && lastMessage?.content === requestText) {
       views.messages.pop()
     }
-    ztoolkit.log("OpenAI Agents SDK request failed, falling back to chat completions", error)
+    runtimeLog("OpenAI", "agent_fallback", {
+      message: error?.message || String(error),
+    }, "warn")
     new ztoolkit.ProgressWindow("Agent fallback", { closeOtherProgressWindows: true })
       .createLine({ text: error?.message || String(error), type: "fail" })
       .createLine({ text: "Falling back to the legacy chat request.", type: "default" })
       .show()
-    return await getGPTResponseByRemote(requestText)
+    const response = await getGPTResponseByRemote(requestText)
+    runtimeLog("OpenAI", "get_gpt_response:end", {
+      mode: "legacy",
+      responseLength: String(response || "").length,
+    })
+    return response
   }
 }
 
 async function getGPTResponseByAgent(requestText: string) {
+  return withRuntimeLog("OpenAI", "agent_response", { requestText }, async () => {
   const views = Zotero[config.addonInstance].views as Views
   views.messages.push({ role: "user", content: requestText })
   views.stopAlloutput()
+  views.keepNextAnswerVisible()
   views.setText("")
+  views.clearAgentToolTrace()
 
-  const responseText = await getAgentResponse(requestText)
+  const { getAgentResponse } = await import("./Agent")
+  const responseText = await getAgentResponse(requestText, {
+    onToolStart: (toolName, input) => views.addAgentToolTrace(toolName, input),
+    onToolEnd: (traceId, output) => views.updateAgentToolTrace(traceId, output),
+    onToolError: (traceId, error) => views.updateAgentToolTrace(traceId, error, true),
+  })
   if (!responseText) {
     throw new Error("Empty response from OpenAI Agents SDK.")
   }
   views.setText(responseText, true)
   views.messages.push({ role: "assistant", content: responseText })
   return responseText
+  })
 }
 
 async function getGPTResponseByRemote(requestText: string) {
+  return withRuntimeLog("OpenAI", "legacy_chat_response", { requestText }, async () => {
   const views = Zotero[config.addonInstance].views as Views
   const secretKey = Zotero.Prefs.get(`${config.addonRef}.secretKey`)
   const temperature = Zotero.Prefs.get(`${config.addonRef}.temperature`)
@@ -276,22 +333,21 @@ async function getGPTResponseByRemote(requestText: string) {
       .show()
     throw new Error(message)
   }
+  })
 }
 
 /**
-
  * 所有getGPTResponseTextByXXX参照此函数实现
  * gpt-3.5-turbo / gpt-4
  * @param requestText 
  * @returns 
  */
 export async function getGPTResponseByOpenAI(requestText: string) {
-  const views = Zotero.ZoteroGPT.views as Views
+  const views = Zotero[config.addonInstance].views as Views
   const secretKey = Zotero.Prefs.get(`${config.addonRef}.secretKey`)
   const temperature = Zotero.Prefs.get(`${config.addonRef}.temperature`)
-  let api = Zotero.Prefs.get(`${config.addonRef}.api`) as string
-  api = api.replace(/\/(?:v1)?\/?$/, "")
-  const model = Zotero.Prefs.get(`${config.addonRef}.model`)
+  const maxTokens = Zotero.Prefs.get(`${config.addonRef}.maxTokens`)
+  const { api, model } = getRequestConfig()
   views.messages.push({
     role: "user",
     content: requestText
@@ -335,7 +391,8 @@ export async function getGPTResponseByOpenAI(requestText: string) {
           model: model,
           messages: views.messages.slice(-chatNumber),
           stream: true,
-          temperature: Number(temperature)
+          temperature: Number(temperature),
+          max_tokens: Number(maxTokens),
         }),
         responseType: "text",
         requestObserver: (xmlhttp: XMLHttpRequest) => {
@@ -396,7 +453,7 @@ export async function getGPTResponseBy(
   requestArg: RequestArg,
   requestText: string,
 ) {
-  const views = Zotero.ZoteroGPT.views as Views
+  const views = Zotero[config.addonInstance].views as Views
   const deltaTime = Zotero.Prefs.get(`${config.addonRef}.deltaTime`) as number
   let responseText: string | undefined
   let _responseText = ""

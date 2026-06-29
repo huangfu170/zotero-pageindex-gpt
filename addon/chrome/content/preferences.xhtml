@@ -1,0 +1,261 @@
+<groupbox
+  xmlns:html="http://www.w3.org/1999/xhtml"
+  onload="Zotero.__addonInstance__.hooks.onPrefsEvent('load', { window })"
+>
+  <html:style>
+    .zpg-pref-pane {
+      max-width: 720px;
+      box-sizing: border-box;
+    }
+    .zpg-pref-row {
+      display: grid;
+      grid-template-columns: 150px minmax(220px, 1fr);
+      align-items: center;
+      gap: 8px 12px;
+      margin: 8px 0;
+    }
+    .zpg-pref-row label {
+      margin: 0;
+    }
+    .zpg-pref-control {
+      width: 100%;
+      max-width: 430px;
+      box-sizing: border-box;
+    }
+    .zpg-pref-actions {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 6px;
+      margin: 6px 0 12px 162px;
+      max-width: 520px;
+    }
+    .zpg-pref-actions button,
+    .zpg-pref-wide-button {
+      min-height: 28px;
+    }
+    .zpg-pref-wide-button {
+      width: 100%;
+      max-width: 720px;
+      margin: 8px 0;
+      box-sizing: border-box;
+    }
+    .zpg-pref-status {
+      margin: 4px 0 12px 162px;
+      max-width: 520px;
+      min-height: 18px;
+      overflow-wrap: anywhere;
+    }
+    .zpg-pref-section {
+      margin-top: 28px;
+    }
+    @media (max-width: 650px) {
+      .zpg-pref-row {
+        grid-template-columns: 1fr;
+      }
+      .zpg-pref-actions,
+      .zpg-pref-status {
+        margin-left: 0;
+      }
+      .zpg-pref-control {
+        max-width: 100%;
+      }
+    }
+  </html:style>
+
+  <html:div class="zpg-pref-pane">
+    <label><html:h2 id="zotero-prefpane-__addonRef__-llm-title">LLM Settings</html:h2></label>
+
+    <checkbox
+      id="zotero-prefpane-__addonRef__-enable"
+      preference="enable"
+      label="Enable"
+    />
+
+    <html:div class="zpg-pref-row">
+      <html:label
+        id="zotero-prefpane-__addonRef__-api-provider-label"
+        for="zotero-prefpane-__addonRef__-api-provider"
+      >API Configuration</html:label>
+      <html:select
+        id="zotero-prefpane-__addonRef__-api-provider"
+        class="zpg-pref-control"
+        preference="apiProvider"
+      ></html:select>
+    </html:div>
+
+    <html:div class="zpg-pref-actions">
+      <html:button
+        id="zotero-prefpane-__addonRef__-add-api-config"
+        type="button"
+      >Add</html:button>
+      <html:button
+        id="zotero-prefpane-__addonRef__-edit-api-config"
+        type="button"
+      >Edit</html:button>
+      <html:button
+        id="zotero-prefpane-__addonRef__-save-api-config"
+        type="button"
+      >Save Current</html:button>
+      <html:button
+        id="zotero-prefpane-__addonRef__-duplicate-api-config"
+        type="button"
+      >Duplicate</html:button>
+      <html:button
+        id="zotero-prefpane-__addonRef__-delete-api-config"
+        type="button"
+      >Delete</html:button>
+      <html:button
+        id="zotero-prefpane-__addonRef__-restore-api-defaults"
+        type="button"
+      >Restore Defaults</html:button>
+    </html:div>
+
+    <html:div class="zpg-pref-row">
+      <html:label
+        id="zotero-prefpane-__addonRef__-api-label"
+        for="zotero-prefpane-__addonRef__-api"
+      >API Base URL</html:label>
+      <html:input
+        id="zotero-prefpane-__addonRef__-api"
+        class="zpg-pref-control"
+        preference="api"
+        type="text"
+      ></html:input>
+    </html:div>
+
+    <html:div class="zpg-pref-row">
+      <html:label
+        id="zotero-prefpane-__addonRef__-secret-key-label"
+        for="zotero-prefpane-__addonRef__-secret-key"
+      >API Secret Key</html:label>
+      <html:input
+        id="zotero-prefpane-__addonRef__-secret-key"
+        class="zpg-pref-control"
+        preference="secretKey"
+        type="password"
+      ></html:input>
+    </html:div>
+
+    <html:div class="zpg-pref-row">
+      <html:label
+        id="zotero-prefpane-__addonRef__-model-label"
+        for="zotero-prefpane-__addonRef__-model"
+      >Model</html:label>
+      <html:input
+        id="zotero-prefpane-__addonRef__-model"
+        class="zpg-pref-control"
+        preference="model"
+        type="text"
+      ></html:input>
+    </html:div>
+
+    <html:div
+      id="zotero-prefpane-__addonRef__-page-index-service-actions"
+      class="zpg-pref-actions"
+    >
+      <html:button
+        id="zotero-prefpane-__addonRef__-test-api-config"
+        type="button"
+      >Test Connection</html:button>
+    </html:div>
+
+    <html:div
+      id="zotero-prefpane-__addonRef__-api-config-status"
+      class="zpg-pref-status"
+    ></html:div>
+
+    <html:button
+      id="zotero-prefpane-__addonRef__-toggle-advanced"
+      class="zpg-pref-wide-button"
+      type="button"
+    >Advanced Settings</html:button>
+
+    <vbox id="zotero-prefpane-__addonRef__-advanced-settings" hidden="true">
+      <html:div class="zpg-pref-row">
+        <html:label
+          id="zotero-prefpane-__addonRef__-max-tokens-label"
+          for="zotero-prefpane-__addonRef__-max-tokens"
+        >Max Tokens</html:label>
+        <html:input
+          id="zotero-prefpane-__addonRef__-max-tokens"
+          class="zpg-pref-control"
+          preference="maxTokens"
+          type="number"
+          min="1"
+        ></html:input>
+      </html:div>
+      <html:div class="zpg-pref-row">
+        <html:label
+          id="zotero-prefpane-__addonRef__-temperature-label"
+          for="zotero-prefpane-__addonRef__-temperature"
+        >Temperature</html:label>
+        <html:input
+          id="zotero-prefpane-__addonRef__-temperature"
+          class="zpg-pref-control"
+          preference="temperature"
+          type="number"
+          min="0"
+          step="0.1"
+        ></html:input>
+      </html:div>
+      <html:div class="zpg-pref-row">
+        <html:label
+          id="zotero-prefpane-__addonRef__-chat-number-label"
+          for="zotero-prefpane-__addonRef__-chat-number"
+        >Chat Item Count</html:label>
+        <html:input
+          id="zotero-prefpane-__addonRef__-chat-number"
+          class="zpg-pref-control"
+          preference="chatNumber"
+          type="number"
+          min="1"
+        ></html:input>
+      </html:div>
+      <html:div class="zpg-pref-row">
+        <html:label
+          id="zotero-prefpane-__addonRef__-related-number-label"
+          for="zotero-prefpane-__addonRef__-related-number"
+        >Related Item Count</html:label>
+        <html:input
+          id="zotero-prefpane-__addonRef__-related-number"
+          class="zpg-pref-control"
+          preference="relatedNumber"
+          type="number"
+          min="1"
+        ></html:input>
+      </html:div>
+    </vbox>
+
+    <html:div class="zpg-pref-section">
+      <label><html:h2 id="zotero-prefpane-__addonRef__-page-index-title">PageIndex Settings</html:h2></label>
+    </html:div>
+
+    <checkbox
+      id="zotero-prefpane-__addonRef__-page-index-enabled"
+      preference="pageIndexEnabled"
+      label="Enable PageIndex"
+    />
+
+    <html:button
+      id="zotero-prefpane-__addonRef__-toggle-page-index-advanced"
+      class="zpg-pref-wide-button"
+      type="button"
+    >Advanced PageIndex Settings</html:button>
+
+    <vbox id="zotero-prefpane-__addonRef__-page-index-advanced-settings" hidden="true">
+      <html:div class="zpg-pref-row">
+        <html:label
+          id="zotero-prefpane-__addonRef__-delta-time-label"
+          for="zotero-prefpane-__addonRef__-delta-time"
+        >Delta Time (ms)</html:label>
+        <html:input
+          id="zotero-prefpane-__addonRef__-delta-time"
+          class="zpg-pref-control"
+          preference="deltaTime"
+          type="number"
+          min="1"
+        ></html:input>
+      </html:div>
+    </vbox>
+  </html:div>
+</groupbox>

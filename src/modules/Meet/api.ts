@@ -18,13 +18,12 @@ import {
   getGPTResponse
 } from "./OpenAI"
 import {
-  getAgentResponse
-} from "./Agent"
-import {
-  ensureCurrentPDFIndexed,
-  health,
   queryCurrentPDF
 } from "./PageIndex"
+import {
+  getRuntimeLogPath,
+  readRuntimeLog
+} from "./RuntimeLogger"
 import Views from "../views";
 
 const Meet: {
@@ -81,12 +80,17 @@ const Meet: {
   },
   OpenAI: {
     getGPTResponse,
-    getAgentResponse
+    getAgentResponse: async (...args: any[]) => {
+      const agent = await import("./Agent");
+      return agent.getAgentResponse(args[0], args[1]);
+    }
   },
   PageIndex: {
-    health,
-    ensureCurrentPDFIndexed,
     queryCurrentPDF
+  },
+  Logs: {
+    getRuntimeLogPath,
+    readRuntimeLog
   },
   Global: {
     lock: undefined,

@@ -7,9 +7,12 @@ const help = `
 \`/help\` Show all commands.
 \`/clear\` Clear history conversation.
 \`/report\` Run this and copy the output content to give feedback to the developer.
+\`/apiProvider longcat|deepseek|custom-config-id\` Select an API configuration. You can add configurations in preferences.
 \`/secretKey ak-xxx\` Set remote API key.
 \`/api https://api.longcat.chat/openai\` Set an OpenAI-compatible remote API.
+\`/api https://api.deepseek.com\` (DeepSeek API) Set another OpenAI-compatible remote API.
 \`/model LongCat-2.0-Preview\` Set the remote model.
+\`/maxTokens 2000\` Set max tokens for each response.
 \`/temperature 1.0\` Set GPT temperature. Controls the randomness and diversity of generated text, specified within a range of 0 to 1.
 \`/chatNumber 3\` Set the number of saved historical conversations.
 \`/relatedNumber 5\` Set the number of most relevant text. For example, the number of paragraphs referenced while using askPDF.
@@ -41,7 +44,6 @@ You can type the question in my header, then press \`Enter\` to ask me.
 You can press \`Ctrl + Enter\` to execute last executed command tag again.
 You can press \`Shift + Enter\` to enter long text editing mode and press \`Ctrl + R\` to execute long text.
 `
-// 杩欐槸 OpenAI ChatGPT 鐨勫瓧浣?
 const fontFamily = `S枚hne,ui-sans-serif,system-ui,-apple-system,Segoe UI,Roboto,Ubuntu,Cantarell,Noto Sans,sans-serif,Helvetica Neue,Arial,Apple Color Emoji,Segoe UI Emoji,Segoe UI Symbol,Noto Color Emoji`
 
 function parseTag(text: string) {
@@ -84,7 +86,7 @@ function parseTag(text: string) {
  */
 let defaultTags: any = [
 `
-#馃獝AskPDF[color=#0EA293][position=10][trigger=/^(鏈枃|杩欑瘒鏂囩珷|璁烘枃)/]
+#AskPDF[color=#0EA293][position=10][trigger=/^(本文|这篇文章|论文|askpdf|AskPDF)/]
 You are a helpful assistant. Context information is below.
 $\{
 Meet.Global.views.messages = [];
@@ -97,41 +99,41 @@ Answer the question: $\{Meet.Global.input\}
 Reply in ${Zotero.locale}
 `,
 `
-#馃専Translate[c=#D14D72][pos=11][trigger=/^缈昏瘧/]
-Translate these content to 绠€浣撲腑鏂?
+#Translate[c=#D14D72][pos=11][trigger=/^(翻译|translate|Translate)/]
+Translate these content to 简体中文:
 $\{
-Meet.Global.input.replace("缈昏瘧", "") ||
+Meet.Global.input.replace(/^(翻译|translate|Translate)/, "") ||
 Meet.Zotero.getPDFSelection() ||
 Meet.Global.views.messages[0].content
 \}
 
 `,
 `
-#鉁↖mprove writing[color=#8e44ad][pos=12][trigger=/^娑﹁壊/]
+#Improve writing[color=#8e44ad][pos=12][trigger=/^(润色|polish|improve|Improve)/]
 Below is a paragraph from an academic paper. Polish the writing to meet the academic style, improve the spelling, grammar, clarity, concision and overall readability. When necessary, rewrite the whole sentence. Furthermore, list all modification and explain the reasons to do so in markdown table. Paragraph: "$\{
-Meet.Global.input.replace("娑﹁壊", "") ||
+Meet.Global.input.replace(/^(润色|polish|improve|Improve)/, "") ||
 Meet.Global.views.messages[0].content
 \}"
 `,
 `
-#Clipboard[c=#576CBC][pos=13][trigger=/(鍓创鏉縷澶嶅埗鍐呭)/]
+#Clipboard[c=#576CBC][pos=13][trigger=/(剪贴板|复制内容|clipboard|Clipboard)/]
 This is the content in my clipboard:
 $\{Meet.Zotero.getClipboardText()\}
 ---
 $\{Meet.Global.input\}
 `,
 `
-#Annotations[c=#F49D1A][pos=14][trigger=/(閫変腑|閫夋嫨鐨剕閫夋嫨|鎵€閫??(娉ㄩ噴|楂樹寒|鏍囨敞)/]
+#Annotations[c=#F49D1A][pos=14][trigger=/(选中|选择|所有)?(注释|高亮|标注|annotation|annotations|Annotations)/]
 These are PDF Annotation contents:
 $\{
-Meet.Zotero.getPDFAnnotations(Meet.Global.input.match(/(閫変腑|閫夋嫨鐨剕閫夋嫨|鎵€閫?/))
+Meet.Zotero.getPDFAnnotations(Meet.Global.input.match(/(选中|选择)/))
 \}
 
-Please answer me in the language of my question. Make sure to cite results using [number] notation after the reference. 
+Please answer me in the language of my question. Make sure to cite results using [number] notation after the reference.
 My question is: $\{Meet.Global.input\}
 `,
 `
-#Selection[c=#D14D72][pos=15][trigger=/^(杩欐|閫変腑)(鏂囨湰|璇潀鏂囧瓧|鎻忚堪)/]
+#Selection[c=#D14D72][pos=15][trigger=/^(这段|选中)(文本|文字|内容|selection|Selection)/]
 Read these content:
 $\{
 Meet.Zotero.getPDFSelection() ||
@@ -141,7 +143,7 @@ Meet.Global.views.messages[0].content
 Answer me in the language of my question. This is my question: $\{Meet.Global.input\}
 `,
   `
-#Item[c=#159895][pos=16][trigger=/杩欑瘒(鏂囩尞|璁烘枃|鏂囩珷)/]
+#Item[c=#159895][pos=16][trigger=/这篇(文献|论文|文章)|item|Item/]
 This is a Zotero item presented in JSON format:
 $\{
 JSON.stringify(ZoteroPane.getSelectedItems()[0].toJSON())
@@ -150,13 +152,13 @@ JSON.stringify(ZoteroPane.getSelectedItems()[0].toJSON())
 Base on this JSON: $\{Meet.Global.input\}
 `,
   `
-#Items[c=#159895][pos=17][trigger=/杩欎簺(鏂囩尞|璁烘枃)/]
+#Items[c=#159895][pos=17][trigger=/这些(文献|论文|文章)|items|Items/]
 These are Zotero items presented in JSON format:
 $\{
 Meet.Zotero.getRelatedText(Meet.Global.input)
 \}
 
-Please answer me using the lanaguage as same as my question. Make sure to cite results using [number] notation after the reference. 
+Please answer me using the language as same as my question. Make sure to cite results using [number] notation after the reference.
 My question is: $\{Meet.Global.input\}
 `,
 ]
