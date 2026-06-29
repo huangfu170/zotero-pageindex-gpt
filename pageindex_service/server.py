@@ -15,13 +15,13 @@ from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 from typing import Any
 from urllib.parse import unquote, urlparse
+from dotenv import load_dotenv
 
 
 DEFAULT_HOST = "127.0.0.1"
 DEFAULT_PORT = 8765
 DEFAULT_PAGEINDEX_REPO = r"D:\项目\PageIndex"
 DEFAULT_REMOTE_API_BASE = "https://api.longcat.chat/openai"
-DEFAULT_REMOTE_API_KEY = "ak_2J27rC4Oi3jK2aK0ln8GO7Mp2x82D"
 DEFAULT_REMOTE_MODEL = "openai/LongCat-2.0-Preview"
 MAP_FILE = "zotero_map.json"
 
@@ -84,12 +84,17 @@ class JsonStore:
 
 class PageIndexService:
     def __init__(self, pageindex_repo: str, workspace: str, model: str | None = None):
+        load_dotenv(dotenv_path=Path(__file__).resolve().parent.parent / ".env")
+        load_dotenv(dotenv_path=Path.cwd() / ".env")
         os.environ.setdefault("OPENAI_API_BASE", DEFAULT_REMOTE_API_BASE)
         os.environ.setdefault("OPENAI_BASE_URL", DEFAULT_REMOTE_API_BASE)
-        os.environ.setdefault("OPENAI_API_KEY", DEFAULT_REMOTE_API_KEY)
         os.environ.setdefault("PAGEINDEX_RETRIEVE_MODEL", DEFAULT_REMOTE_MODEL)
         if os.getenv("LONGCAT_API_KEY") and not os.getenv("OPENAI_API_KEY"):
             os.environ["OPENAI_API_KEY"] = os.getenv("LONGCAT_API_KEY", "")
+        if not os.getenv("OPENAI_API_KEY"):
+            raise RuntimeError(
+                "OPENAI_API_KEY is required. Set it in environment or .env before starting service."
+            )
         add_pageindex_to_path(pageindex_repo)
         from pageindex import PageIndexClient
 
